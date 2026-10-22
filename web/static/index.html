@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" data-theme="ink">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiroku — your commits, on record</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23E4572E'/%3E%3Ctext x='16' y='24' text-anchor='middle' font-size='20' fill='%231A0F0B' font-family='serif' font-weight='bold'%3E%E8%A8%98%3C/text%3E%3C/svg%3E">
+<meta name="description" content="Kiroku: turn git commits into readable release notes. Your commits, on record.">
+<script>
+  // Set the theme before first paint to avoid a flash.
+  (function () {
+    var theme = localStorage.getItem('kiroku-theme');
+    if (theme !== 'ink' && theme !== 'paper') {
+      theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+        ? 'paper' : 'ink';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.style.colorScheme = theme;
+  })();
+</script>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="brand">
+      <svg class="seal" xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="6" fill="var(--accent)"/>
+        <text x="16" y="24" text-anchor="middle" font-size="20" fill="var(--on-accent)" font-family="ui-serif, Georgia, serif" font-weight="bold">記</text>
+      </svg>
+      <span class="brand-name">Kiroku</span>
+    </div>
+    <div class="header-right">
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" title="Switch theme">
+        <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+        <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/></svg>
+        <span class="sr-only">Toggle theme</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <p class="tagline">Your commits, on record.</p>
+
+    <nav class="stepper" aria-label="Steps">
+      <ol>
+        <li><button type="button" class="step is-current" data-step="1" aria-current="step">1&#8239;Input</button></li>
+        <li><button type="button" class="step" data-step="2">2&#8239;Settings</button></li>
+        <li><button type="button" class="step" data-step="3">3&#8239;Release notes</button></li>
+      </ol>
+    </nav>
+
+    <div id="error-box" role="alert" hidden></div>
+
+    <!-- step 1: input -->
+    <section class="step-panel" id="step-1">
+      <h1>Paste a git log</h1>
+      <p class="empty-state" id="empty-state">Nothing on record yet. Paste a git log or pick a repository to start.</p>
+
+      <div class="command-box">
+        <code id="git-command" class="command-line">git log --pretty=format:'%H%x1f%s%x1f%b%x1f%an%x1f%ad%x1e' --date=short v1.0.0..v1.1.0</code>
+        <button type="button" id="copy-command" class="button small">Copy</button>
+      </div>
+
+      <details id="repo-box" class="repo-box">
+        <summary>Or fetch from a public GitHub repository</summary>
+        <div class="grid two">
+          <div>
+            <label class="field-label" for="repo-owner">Owner</label>
+            <input id="repo-owner" type="text" inputmode="text" placeholder="e.g. octocat">
+          </div>
+          <div>
+            <label class="field-label" for="repo-name">Repository</label>
+            <input id="repo-name" type="text" inputmode="text" placeholder="e.g. Hello-World">
+          </div>
+        </div>
+        <div class="grid two">
+          <div>
+            <label class="field-label" for="repo-from">From (base)</label>
+            <input id="repo-from" type="text" inputmode="text" placeholder="e.g. v1.0.0 or main">
+          </div>
+          <div>
+            <label class="field-label" for="repo-to">To (head)</label>
+            <input id="repo-to" type="text" inputmode="text" placeholder="e.g. v1.1.0 or a SHA">
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" id="fetch-repo" class="button primary">Fetch commits</button>
+        </div>
+        <p id="repo-status" class="status" role="status" aria-live="polite"></p>
+        <p class="hint">Public repositories only. GitHub allows about 60 anonymous requests per hour per IP — if it runs out, paste a git log instead.</p>
+      </details>
+
+      <label class="field-label" for="paste-input">Paste the output of that command below</label>
+      <textarea id="paste-input" rows="10" spellcheck="false"
+        placeholder="Paste the commit log here. Plain `git log --oneline` output also works."></textarea>
+
+      <p id="input-status" class="status" role="status" aria-live="polite"></p>
+
+      <div class="actions">
+        <button type="button" id="analyze" class="button primary">Analyze</button>
+      </div>
+    </section>
+
+    <!-- step 2: settings -->
+    <section class="step-panel" id="step-2" hidden>
+      <h1>Settings</h1>
+
+      <div class="grid two">
+        <div>
+          <label class="field-label" for="ver">Version number</label>
+          <input id="ver" type="text" inputmode="text" placeholder="e.g. 1.1.0">
+        </div>
+        <div>
+          <label class="field-label" for="release-date">Release date</label>
+          <input id="release-date" type="date">
+        </div>
+      </div>
+
+      <label class="field-label" for="compare-url">Compare link (optional)</label>
+      <input id="compare-url" type="url" placeholder="https://github.com/owner/name/compare/v1.0.0...v1.1.0">
+
+      <fieldset class="fieldset">
+        <legend class="field-label">Audience</legend>
+        <div class="segmented" role="radiogroup" aria-label="Audience">
+          <input type="radio" id="aud-dev" name="audience" value="developers" checked>
+          <label for="aud-dev">Developers</label>
+          <input type="radio" id="aud-users" name="audience" value="users">
+          <label for="aud-users">Users</label>
+        </div>
+        <p class="hint" id="audience-hint">Developers: scopes, short hashes, maintenance. Users: plain wording, no hashes.</p>
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="field-label">Format</legend>
+        <div class="segmented" role="radiogroup" aria-label="Format">
+          <input type="radio" id="fmt-kac" name="format" value="keep-a-changelog" checked>
+          <label for="fmt-kac">Keep a Changelog</label>
+          <input type="radio" id="fmt-gh" name="format" value="github-release">
+          <label for="fmt-gh">GitHub Release</label>
+          <input type="radio" id="fmt-plain" name="format" value="plain-bullets">
+          <label for="fmt-plain">Plain bullets</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="field-label">Toggles</legend>
+        <label class="check">
+          <input type="checkbox" id="hide-noise" checked>
+          <span>Hide noise</span>
+          <small>merge commits, wip, typo, version bumps, dependency bots</small>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="credit">
+          <span>Credit contributors</span>
+          <small>show author names — never email addresses</small>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="show-hashes">
+          <span>Show commit hashes</span>
+          <small>short hashes, developers audience only</small>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="group-scope">
+          <span>Group by scope</span>
+          <small>sort entries by their scope inside each section</small>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="ai-polish" data-ai-only>
+          <span>AI polish <em>experimental</em></span>
+          <small>reword entries and add an AI-drafted summary — needs KIROKU_AI_API_KEY on the server</small>
+        </label>
+      </fieldset>
+
+      <p class="hint" id="ai-setup-note" hidden>Need API access? Set <code>KIROKU_AI_API_KEY</code> (and optionally <code>KIROKU_AI_BASE_URL</code>, <code>KIROKU_AI_MODEL</code>) on the server and restart. AI polish is off until then. You can also use a local OpenAI-compatible endpoint such as Ollama.</p>
+
+      <label class="field-label" for="repo-url">Repository (optional)</label>
+      <input id="repo-url" type="url" placeholder="https://github.com/owner/name  — turns (#123) into a pull request link">
+      <p class="hint">Only used to link pull request or issue references like (#123). Nothing is fetched.</p>
+
+      <div class="sticky-actions">
+        <button type="button" id="generate" class="button primary">Generate release notes</button>
+      </div>
+    </section>
+
+    <!-- step 3: result -->
+    <section class="step-panel" id="step-3" hidden>
+      <h1>Release notes</h1>
+      <p id="result-summary" class="summary" role="status" aria-live="polite"></p>
+
+      <div class="tabs" role="tablist" aria-label="Result view">
+        <button type="button" id="tab-preview" role="tab" aria-selected="true" aria-controls="panel-preview">Preview</button>
+        <button type="button" id="tab-markdown" role="tab" aria-selected="false" aria-controls="panel-markdown" tabindex="-1">Markdown</button>
+      </div>
+
+      <div class="actionbar">
+        <button type="button" id="copy-notes" class="button">Copy</button>
+        <button type="button" id="download-notes" class="button">Download CHANGELOG.md</button>
+        <p class="hint" id="actionbar-hint">Copy or download the Markdown. You can also edit entries in the preview — change the wording, or move one to another section.</p>
+      </div>
+
+      <div id="panel-preview" role="tabpanel" aria-labelledby="tab-preview"></div>
+
+      <div id="panel-markdown" role="tabpanel" aria-labelledby="tab-markdown" hidden>
+        <pre class="markdown-block"><code id="md-output"></code></pre>
+      </div>
+
+      <section class="merge-box">
+        <details id="merge-details">
+          <summary>Add to an existing changelog</summary>
+          <label class="field-label" for="existing-input">Paste your current CHANGELOG.md below. Kiroku slots the new release in above the previous ones (an "Unreleased" section stays at the top).</label>
+          <textarea id="existing-input" rows="8" spellcheck="false"
+            placeholder="# Changelog&#10;.... existing entries ...."></textarea>
+          <div class="actions">
+            <button type="button" id="merge-notes" class="button primary">Add this release</button>
+          </div>
+          <p id="merge-note" class="status" role="status" aria-live="polite"></p>
+          <div id="merge-result" hidden>
+            <label class="field-label" for="merged-output">Combined changelog</label>
+            <textarea id="merged-output" rows="14" readonly spellcheck="false"></textarea>
+            <div class="actions">
+              <button type="button" id="copy-merged" class="button">Copy</button>
+              <button type="button" id="download-merged" class="button">Download CHANGELOG.md</button>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <div class="actions">
+        <button type="button" id="back-to-settings" class="button">Back to settings</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">Kiroku — your commits, on record.</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

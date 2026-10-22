@@ -1,0 +1,87 @@
+Metadata-Version: 2.4
+Name: kiroku
+Version: 0.1.0
+Summary: Your commits, on record. Turn git commits into readable release notes.
+Author: Kiroku
+License: MIT
+Keywords: changelog,git,release-notes,conventional-commits
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Provides-Extra: web
+Requires-Dist: fastapi>=0.110; extra == "web"
+Requires-Dist: uvicorn>=0.27; extra == "web"
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+
+# Kiroku
+
+Your commits, on record. Kiroku turns a range of git commits into clean,
+grouped release notes in Markdown — ready to paste into a CHANGELOG.md, a
+GitHub release, or an email.
+
+This repository currently contains **Step 1** of the build: the core Python
+module (parse → classify → group → format). No web code yet.
+
+## Principles
+
+- Works fully with **no AI** by default (rule-based parsing).
+- **Never invents anything**: every line in the release notes traces back to a
+  real commit.
+- Nothing pasted is stored. Everything happens in memory.
+
+## Layout
+
+```
+kiroku/            the core package (no web dependencies)
+  parser.py        read pasted git log text -> RawCommit
+  classifier.py    sort commits into sections (Conventional Commits + keywords)
+  grouper.py       hide noise, merge duplicates, group into sections
+  formatter.py     render ReleaseNotes -> Markdown (3 formats)
+  core.py          public API: generate_release_notes(), format_markdown()
+tests/             pytest suite
+```
+
+## Try it
+
+```bash
+pip install -e ".[dev]"
+python -m pytest
+```
+
+Or, without installing, run pytest from the repository root.
+
+The recommended git command (Step 2's CLI will run this for you):
+
+```bash
+git log --pretty=format:'%H%x1f%s%x1f%b%x1f%an%x1f%ad%x1e' --date=short v1.0.0..v1.1.0
+```
+
+Paste that output into `generate_release_notes`:
+
+```python
+from kiroku import Options, generate_release_notes, format_release_notes
+
+with open("gitlog.txt", encoding="utf-8") as f:
+    text = f.read()
+
+notes = generate_release_notes(
+    text,
+    Options(version="1.1.0", date="2026-10-11", audience="developers"),
+)
+print(format_release_notes(notes))
+```
+
+The parser also accepts plain `git log --oneline` output.
+
+## Sections
+
+Breaking changes (always first), then Added, Changed, Deprecated, Removed,
+Fixed, Security, Maintenance (developers only), Other changes.
+
+## What's tested
+
+See `tests/` — the suite covers the core acceptance criteria: conventional
+commits and scopes, breaking changes (bang + footer), noise hiding, duplicate
+and revert merging, keyword guessing, PR/issue reference detection, the Users
+vs Developers audiences, all three output formats, friendly errors for garbage
+input, and the 5,000-commit limit.

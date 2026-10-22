@@ -1,0 +1,138 @@
+Metadata-Version: 2.4
+Name: kiroku-cli
+Version: 0.3.0
+Summary: Your commits, on record. Turn git commits into readable release notes.
+Author: Kiroku
+License: MIT
+Keywords: changelog,git,release-notes,conventional-commits
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Provides-Extra: web
+Requires-Dist: fastapi>=0.110; extra == "web"
+Requires-Dist: uvicorn>=0.27; extra == "web"
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+
+# Kiroku
+
+Your commits, on record. Kiroku turns a range of git commits into clean,
+grouped release notes in Markdown — ready to paste into a CHANGELOG.md, a
+GitHub release, or an email.
+
+This repository currently contains **Steps 1–3** of the build: the core Python
+module (parse → classify → group → format), the `kiroku` command-line tool, and
+the web app (paste input, settings, result tabs, both themes).
+
+## Principles
+
+- Works fully with **no AI** by default (rule-based parsing).
+- **Never invents anything**: every line in the release notes traces back to a
+  real commit.
+- Nothing pasted is stored. Everything happens in memory.
+
+## Layout
+
+```
+kiroku/            the core package (no web dependencies)
+  parser.py        read pasted git log text -> RawCommit
+  classifier.py    sort commits into sections (Conventional Commits + keywords)
+  grouper.py       hide noise, merge duplicates, group into sections
+  formatter.py     render ReleaseNotes -> Markdown (3 formats)
+  core.py          public API: generate_release_notes(), format_markdown()
+  cli.py           the `kiroku` command line tool
+web/               FastAPI backend + static page
+  app.py           POST /api/generate (calls the core, returns JSON + Markdown)
+  static/          index.html, app.css, app.js — no frameworks
+tests/             pytest suite
+```
+
+## Run the web app
+
+```bash
+uv pip install -e ".[dev,web]"
+uvicorn web.app:app --reload
+```
+
+Open http://127.0.0.1:8000 — the first screen shows the Kiroku seal, the name,
+the tagline "Your commits, on record.", and the empty state: "Nothing on record
+yet. Paste a git log or pick a repository to start."
+
+Flow: paste a git log → Analyze → choose settings → Generate release notes →
+Preview / Markdown tabs. The dark "ink" theme is the default and follows your
+device setting; the theme toggle in the header switches to "paper" and is
+remembered.
+
+The web app and the CLI run the exact same core code, so both produce the same
+Markdown for the same input.
+
+## Install
+
+The package is published on PyPI as **kiroku-cli** (the name "kiroku" was
+already taken by an unrelated, inactive project). The command it installs is
+still `kiroku`.
+
+```bash
+pip install -e ".[dev]"     # development install
+# later: pip install kiroku-cli
+```
+
+## Command line
+
+Run git itself in the current repository:
+
+```bash
+kiroku --from v1.0.0 --to v1.1.0 --version 1.1.0
+```
+
+Or pipe in a git log (any repo, even private — nothing is sent anywhere):
+
+```bash
+git log --oneline v1.0.0..v1.1.0 | kiroku --version 1.1.0
+```
+
+Help for every option:
+
+```bash
+kiroku --help
+```
+
+Options include `--audience developers|users`, `--format
+keep-a-changelog|github-release|plain-bullets`, `--no-noise-hiding`,
+`--show-hashes`, `--group-by-scope`, `--credit-contributors`, `--repo-url` (to
+link issue/PR references), `--compare-url`, and `--date`.
+
+## Library
+
+```python
+from kiroku import Options, generate_release_notes, format_release_notes
+
+with open("gitlog.txt", encoding="utf-8") as f:
+    text = f.read()
+
+notes = generate_release_notes(
+    text,
+    Options(version="1.1.0", date="2026-10-11", audience="developers"),
+)
+print(format_release_notes(notes))
+```
+
+The parser accepts both the recommended field-separated command and plain
+`git log --oneline` output.
+
+## Sections
+
+Breaking changes (always first), then Added, Changed, Deprecated, Removed,
+Fixed, Security, Maintenance (developers only), Other changes.
+
+## What's tested
+
+See `tests/` — the suite covers the core acceptance criteria: conventional
+commits and scopes, breaking changes (bang + footer), noise hiding, duplicate
+and revert merging, keyword guessing, PR/issue reference detection, the Users
+vs Developers audiences, all three output formats, friendly errors for garbage
+input, the 5,000-commit limit, and the CLI (argument mapping, git command
+construction, error handling). Run it with:
+
+```bash
+python -m pytest
+```
